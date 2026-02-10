@@ -2,188 +2,31 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>巡回点検システム V3.1(テスト用)</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; margin: 0; padding: 15px; }
-        .page { display: none; }
-        .page.active { display: block; }
-        .btn { display: block; width: 100%; padding: 15px; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; cursor: pointer; text-align: center; color: white; text-decoration: none; box-sizing: border-box; }
-        .btn-blue { background: #007bff; }
-        .btn-orange { background: #ff9800; }
-        .btn-green { background: #28a745; }
-        .btn-gray { background: #555; }
-        .btn-red-outline { background: none; border: 1px solid #ff5252; color: #ff5252; }
-        #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000; border: 5px solid transparent; }
-        .db-display { font-size: 3rem; font-weight: bold; color: #ffeb3b; text-align: center; margin: 10px 0; }
-        .card { background: #333; margin-bottom: 12px; padding: 15px; border-radius: 10px; border-left: 5px solid #28a745; }
-        .row { display: flex; gap: 8px; margin-top: 8px; }
-        select, input { flex: 1; padding: 10px; border-radius: 5px; border: none; }
-        .log-container { background: #222; border-radius: 10px; padding: 10px; margin-top: 20px; font-size: 0.85rem; border: 1px solid #444; }
-        .log-entry { color: #4caf50; border-bottom: 1px solid #333; padding: 8px 0; font-weight: bold; }
-        .scan-msg { background: #4caf50; color: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: center; animation: fadeOut 3s forwards; }
-        @keyframes fadeOut { 0% {opacity: 1;} 80% {opacity: 1;} 100% {opacity: 0;} }
-        #config-ui { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:999; padding:20px; box-sizing:border-box; overflow-y: auto; }
-    </style>
+    <title>動作テスト</title>
 </head>
-<body>
+<body style="text-align:center; padding-top:50px;">
+    <h1>システム起動テスト</h1>
+    <button onclick="check()" style="font-size:20px; padding:20px;">ここを押してください</button>
+    <p id="msg"></p>
 
-    <div id="setup-page" class="page active" style="text-align:center; padding-top:50px;">
-        <h2>巡回点検システム</h2>
-        <p style="color:#aaa;">電波のある場所で起動してください</p>
-        <button onclick="startApp()" class="btn btn-blue">システムを起動する</button>
-    </div>
+    <script>
+        function check() {
+            document.getElementById('msg').innerText = "通信成功！ボタンは動いています。次は位置情報を確認します...";
+            
+            if (!navigator.geolocation) {
+                alert("お使いのブラウザはGPSに対応していません");
+                return;
+            }
 
-    <div id="scan-page" class="page">
-        <h3 style="text-align:center; margin-top:0;">📷 打刻スキャン</h3>
-        <div id="reader"></div>
-        <div class="db-display" id="db-live">-- dB</div>
-        <div style="background:#333; padding:10px; border-radius:10px; margin-bottom:15px;">
-            <p style="font-size:0.7rem; color:#ccc; margin:0 0 5px 0;">手動打刻（#のエリアのみ）</p>
-            <div style="display:flex; gap:5px;">
-                <select id="manualAreaSelect"></select>
-                <button onclick="manualLog()" style="padding:10px; background: #666; color:white; border:none; border-radius:5px; width:80px;">打刻</button>
-            </div>
-        </div>
-        <button onclick="showPage('check-page')" class="btn btn-green">📋 チェックリスト入力へ</button>
-        <button onclick="sendReport('scan')" class="btn btn-orange">📤 打刻結果を報告</button>
-        <div class="log-container">
-            <div id="scan-status"></div>
-            <div id="statusLog"></div>
-        </div>
-        <button onclick="toggleConfig()" style="margin-top:20px; width:100%; background:none; border:none; color:#555; font-size:0.8rem;">⚙ 設定（エリア登録）</button>
-    </div>
-
-    <div id="check-page" class="page">
-        <h3 style="text-align:center; margin-top:0;">📋 チェックリスト</h3>
-        <div id="checklist-container"></div>
-        <button onclick="sendReport('check')" class="btn btn-orange" style="margin-top:20px;">📤 点検結果を報告</button>
-        <button onclick="showPage('scan-page')" class="btn btn-gray">⬅ 打刻画面に戻る</button>
-        <button onclick="clearData()" class="btn btn-red-outline" style="margin-top:30px;">🔄 本日の全データをリセット</button>
-    </div>
-
-    <div id="config-ui">
-        <h3>⚙ エリア設定</h3>
-        <p style="font-size:0.8rem; color:#ccc;">1行に1エリア入力してください</p>
-        <textarea id="cfgAreas" rows="12" style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem;" placeholder="エリア名#&#10;エリア名*"></textarea>
-        <button onclick="saveConfig()" class="btn btn-green" style="margin-top:10px;">✅ 設定を保存する</button>
-        <button onclick="toggleConfig()" class="btn btn-gray">キャンセル</button>
-    </div>
-
-<script>
-    let audioContext, analyser, currentDb = 0, html5QrCode;
-    let isProcessing = false;
-
-    function showPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById(pageId).classList.add('active');
-        if(pageId === 'check-page') renderChecklist();
-    }
-
-    async function startApp() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            audioContext.createMediaStreamSource(stream).connect(analyser);
-            updateDb();
-            showPage('scan-page');
-            html5QrCode = new Html5Qrcode("reader");
-            await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (txt) => { doLog(txt); });
-            setupManualSelect();
-            refreshLogDisplay();
-        } catch (err) {
-            alert("カメラ・マイクの使用を許可してください。");
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    alert("位置情報の取得に成功しました！\n緯度: " + pos.coords.latitude);
+                },
+                (err) => {
+                    alert("位置情報エラー: " + err.message + "\n設定で位置情報を許可してください。");
+                }
+            );
         }
-    }
-
-    function updateDb() {
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(data);
-        currentDb = Math.round((Math.max(...data) / 255) * 70 + 30);
-        document.getElementById('db-live').innerText = currentDb + " dB";
-        requestAnimationFrame(updateDb);
-    }
-
-    function doLog(txt, isManual = false) {
-        if (isProcessing && !isManual) return;
-        isProcessing = true;
-        const now = new Date().toLocaleTimeString();
-        let data = JSON.parse(localStorage.getItem('myPatrolResults')) || {};
-        if (!data[txt]) data[txt] = { r1: "", r1note: "", r2: "", r2note: "" };
-        data[txt].time = now + (isManual ? "(手)" : "");
-        data[txt].db = currentDb;
-        localStorage.setItem('myPatrolResults', JSON.stringify(data));
-        refreshLogDisplay();
-        const statusDiv = document.getElementById('scan-status');
-        if(!isManual) {
-            document.getElementById('reader').style.border = "5px solid #4caf50";
-            statusDiv.innerHTML = `<div class="scan-msg">✨ ${txt.replace(/[#*]/g,'')} を記録</div>`;
-            setTimeout(() => { isProcessing = false; document.getElementById('reader').style.border = "5px solid transparent"; }, 3000);
-        } else { isProcessing = false; }
-    }
-
-    function renderChecklist() {
-        const container = document.getElementById('checklist-container');
-        const areas = JSON.parse(localStorage.getItem('myPatrolAreas')) || [];
-        const results = JSON.parse(localStorage.getItem('myPatrolResults')) || {};
-        const targets = areas.filter(a => !a.endsWith('#'));
-        if(targets.length === 0) {
-            container.innerHTML = "<p style='color:#888; text-align:center;'>設定から点検エリアを登録してください</p>";
-            return;
-        }
-        container.innerHTML = targets.map(area => {
-            const res = results[area] || { r1: "", r1note: "", r2: "", r2note: "" };
-            const isSingle = area.endsWith('*');
-            return `<div class="card">
-                <h4 style="margin:0 0 10px 0; color:#ffeb3b;">📍 ${area.replace('*','')}</h4>
-                <div class="row">
-                    <select onchange="updateResult('${area}','r1',this.value)"><option value="">点検1</option><option value="○" ${res.r1==='○'?'selected':''}>○ 異常なし</option><option value="×" ${res.r1==='×'?'selected':''}>× 異常あり</option></select>
-                    <input type="text" placeholder="メモ" value="${res.r1note||''}" onchange="updateResult('${area}','r1note',this.value)">
-                </div>
-                ${!isSingle ? `<div class="row">
-                    <select onchange="updateResult('${area}','r2',this.value)"><option value="">点検2</option><option value="○" ${res.r2==='○'?'selected':''}>○ 異常なし</option><option value="×" ${res.r2==='×'?'selected':''}>× 異常あり</option></select>
-                    <input type="text" placeholder="メモ" value="${res.r2note||''}" onchange="updateResult('${area}','r2note',this.value)">
-                </div>` : ''}
-            </div>`;
-        }).join('');
-    }
-
-    function updateResult(area, field, val) {
-        let d = JSON.parse(localStorage.getItem('myPatrolResults')) || {};
-        if (!d[area]) d[area] = { r1: "", r1note: "", r2: "", r2note: "" };
-        d[area][field] = val;
-        localStorage.setItem('myPatrolResults', JSON.stringify(d));
-    }
-
-    function sendReport(type) {
-        let body = type === 'scan' ? "【巡回打刻履歴】\n\n" : "【巡回点検報告】\n\n";
-        const results = JSON.parse(localStorage.getItem('myPatrolResults')) || {};
-        Object.keys(results).sort().forEach(key => {
-            const r = results[key];
-            const name = key.replace(/[#*]/g,'');
-            if(type === 'scan' && r.time) body += `■${name}\n時刻: ${r.time} / 騒音: ${r.db}dB\n\n`;
-            else if(type === 'check' && !key.endsWith('#')) body += `■${name}\n 1回目: ${r.r1||'未'} ${r.r1note||''}\n${!key.endsWith('*')?` 2回目: ${r.r2||'未'} ${r.r2note||''}\n`:''}\n`;
-        });
-        location.href = `mailto:test@example.com?subject=報告&body=${encodeURIComponent(body)}`;
-    }
-
-    function clearData() { if(confirm("全データをリセットしますか？")) { localStorage.removeItem('myPatrolResults'); location.reload(); } }
-
-    function refreshLogDisplay() {
-        const logDiv = document.getElementById('statusLog');
-        const data = JSON.parse(localStorage.getItem('myPatrolResults')) || {};
-        let html = "";
-        Object.keys(data).filter(k => data[k].time).sort((a,b) => (data[b].time > data[a].time ? 1 : -1)).forEach(name => {
-            html += `<div class="log-entry">✅ ${name.replace(/[#*]/g,'')} (${data[name].time})</div>`;
-        });
-        logDiv.innerHTML = html;
-    }
-
-    function setupManualSelect() {
-        const sel = document.getElementById('manualAreaSelect');
-        const areas = JSON.parse(localStorage.getItem('myPatrolAreas')) || [];
-        const targets = areas.filter(a => a.endsWith('#'));
-        sel.innerHTML = targets.map(a => `<option value="${a}">${a.replace
+    </script>
+</body>
+</html>
