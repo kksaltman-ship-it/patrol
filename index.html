@@ -3,29 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>巡回点検システム V3.1(テスト用)</title>
+    <title>巡回点検システム V3.3</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; margin: 0; padding: 15px; }
-        .page { display: none; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; margin: 0; padding: 0; }
+        .page { display: none; padding: 15px; box-sizing: border-box; }
         .page.active { display: block; }
+        
+        .sticky-nav {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: #222;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            border-bottom: 2px solid #444;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            margin-bottom: 15px;
+        }
+
         .btn { display: block; width: 100%; padding: 15px; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; cursor: pointer; text-align: center; color: white; text-decoration: none; box-sizing: border-box; }
         .btn-blue { background: #007bff; }
         .btn-orange { background: #ff9800; }
         .btn-green { background: #28a745; }
         .btn-gray { background: #555; }
+        .btn-small { width: auto; padding: 8px 15px; font-size: 0.9rem; margin-bottom: 0; }
         .btn-red-outline { background: none; border: 1px solid #ff5252; color: #ff5252; }
+        
         #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000; border: 5px solid transparent; }
         .db-display { font-size: 3rem; font-weight: bold; color: #ffeb3b; text-align: center; margin: 10px 0; }
         .card { background: #333; margin-bottom: 12px; padding: 15px; border-radius: 10px; border-left: 5px solid #28a745; }
         .row { display: flex; gap: 8px; margin-top: 8px; }
-        select, input { flex: 1; padding: 10px; border-radius: 5px; border: none; }
+        select, input, textarea { flex: 1; padding: 12px; border-radius: 8px; border: none; font-size: 1rem; }
         .log-container { background: #222; border-radius: 10px; padding: 10px; margin-top: 20px; font-size: 0.85rem; border: 1px solid #444; }
         .log-entry { color: #4caf50; border-bottom: 1px solid #333; padding: 8px 0; font-weight: bold; }
         .scan-msg { background: #4caf50; color: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: center; animation: fadeOut 3s forwards; }
         @keyframes fadeOut { 0% {opacity: 1;} 80% {opacity: 1;} 100% {opacity: 0;} }
-        #config-ui { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:999; padding:20px; box-sizing:border-box; overflow-y: auto; }
+        
+        /* 設定UIの調整 */
+        #config-ui { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; padding:20px; box-sizing:border-box; overflow-y: auto; }
+        .config-section { background: #222; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #444; }
     </style>
 </head>
 <body>
@@ -53,21 +73,35 @@
             <div id="scan-status"></div>
             <div id="statusLog"></div>
         </div>
-        <button onclick="toggleConfig()" style="margin-top:20px; width:100%; background:none; border:none; color:#555; font-size:0.8rem;">⚙ 設定（エリア登録）</button>
+        <button onclick="toggleConfig()" style="margin-top:20px; width:100%; background:none; border:none; color:#555; font-size:0.8rem;">⚙ 設定（送信先・エリア登録）</button>
     </div>
 
-    <div id="check-page" class="page">
-        <h3 style="text-align:center; margin-top:0;">📋 点検リスト</h3>
-        <div id="checklist-container"></div>
-        <button onclick="sendReport('check')" class="btn btn-orange" style="margin-top:20px;">📤 点検結果を報告</button>
-        <button onclick="showPage('scan-page')" class="btn btn-gray">⬅ 打刻画面に戻る</button>
-        <button onclick="clearData()" class="btn btn-red-outline" style="margin-top:30px;">🔄 本日の全データをリセット</button>
+    <div id="check-page" class="page" style="padding:0;">
+        <div class="sticky-nav">
+            <button onclick="showPage('scan-page')" class="btn btn-gray btn-small">⬅ 戻る</button>
+            <h3 style="margin:0;">📋 点検リスト</h3>
+            <div style="width:60px;"></div>
+        </div>
+        <div style="padding:15px;">
+            <div id="checklist-container"></div>
+            <button onclick="sendReport('check')" class="btn btn-orange" style="margin-top:20px;">📤 点検結果を報告</button>
+            <button onclick="clearData()" class="btn btn-red-outline" style="margin-top:30px;">🔄 本日の全データをリセット</button>
+        </div>
     </div>
 
     <div id="config-ui">
-        <h3>⚙ エリア設定</h3>
-        <p style="font-size:0.8rem; color:#ccc;">1行に1エリア入力してください</p>
-        <textarea id="cfgAreas" rows="12" style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem;" placeholder="エリア名#&#10;エリア名*"></textarea>
+        <h3>⚙ システム設定</h3>
+        
+        <div class="config-section">
+            <label style="display:block; margin-bottom:10px; color:#ffeb3b;">📬 報告メール送信先</label>
+            <input type="email" id="cfgEmail" style="width:100%; box-sizing:border-box;" placeholder="example@mail.com">
+        </div>
+
+        <div class="config-section">
+            <label style="display:block; margin-bottom:10px; color:#ffeb3b;">📍 エリア登録（1行1項目）</label>
+            <textarea id="cfgAreas" rows="8" style="width:100%; box-sizing:border-box;" placeholder="エリア名# (手動打刻用)&#10;エリア名* (点検1のみ)"></textarea>
+        </div>
+
         <button onclick="saveConfig()" class="btn btn-green" style="margin-top:10px;">✅ 設定を保存する</button>
         <button onclick="toggleConfig()" class="btn btn-gray">キャンセル</button>
     </div>
@@ -80,6 +114,7 @@
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(pageId).classList.add('active');
         if(pageId === 'check-page') renderChecklist();
+        window.scrollTo(0,0);
     }
 
     async function startApp() {
@@ -100,6 +135,7 @@
     }
 
     function updateDb() {
+        if (!analyser) return;
         const data = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(data);
         currentDb = Math.round((Math.max(...data) / 255) * 70 + 30);
@@ -159,6 +195,7 @@
     }
 
     function sendReport(type) {
+        const mailTo = localStorage.getItem('myPatrolEmail') || "test@example.com";
         let body = type === 'scan' ? "【巡回打刻履歴】\n\n" : "【巡回点検報告】\n\n";
         const results = JSON.parse(localStorage.getItem('myPatrolResults')) || {};
         Object.keys(results).sort().forEach(key => {
@@ -167,7 +204,7 @@
             if(type === 'scan' && r.time) body += `■${name}\n時刻: ${r.time} / 騒音: ${r.db}dB\n\n`;
             else if(type === 'check' && !key.endsWith('#')) body += `■${name}\n 1回目: ${r.r1||'未'} ${r.r1note||''}\n${!key.endsWith('*')?` 2回目: ${r.r2||'未'} ${r.r2note||''}\n`:''}\n`;
         });
-        location.href = `mailto:test@example.com?subject=報告&body=${encodeURIComponent(body)}`;
+        location.href = `mailto:${mailTo}?subject=報告&body=${encodeURIComponent(body)}`;
     }
 
     function clearData() { if(confirm("全データをリセットしますか？")) { localStorage.removeItem('myPatrolResults'); location.reload(); } }
@@ -197,18 +234,25 @@
     function toggleConfig() {
         const ui = document.getElementById('config-ui');
         if(ui.style.display==='none' || !ui.style.display){
-            const saved = localStorage.getItem('myPatrolAreas');
-            document.getElementById('cfgAreas').value = saved ? JSON.parse(saved).join('\n') : "";
+            // 保存データの読み込み
+            const savedAreas = localStorage.getItem('myPatrolAreas');
+            const savedEmail = localStorage.getItem('myPatrolEmail');
+            
+            document.getElementById('cfgAreas').value = savedAreas ? JSON.parse(savedAreas).join('\n') : "";
+            document.getElementById('cfgEmail').value = savedEmail || "";
             ui.style.display='block';
         } else { ui.style.display='none'; }
     }
 
     function saveConfig() {
-        const text = document.getElementById('cfgAreas').value;
-        const list = text.split('\n').map(a => a.trim()).filter(a => a);
+        const email = document.getElementById('cfgEmail').value;
+        const areaText = document.getElementById('cfgAreas').value;
+        const areaList = areaText.split('\n').map(a => a.trim()).filter(a => a);
+        
         try {
-            localStorage.setItem('myPatrolAreas', JSON.stringify(list));
-            alert("【重要：バックアップ】\n設定を保存しました。万が一消えた時のために、このリストをコピーしてメモ帳等に保存しておくことをおすすめします！\n\n" + text);
+            localStorage.setItem('myPatrolEmail', email);
+            localStorage.setItem('myPatrolAreas', JSON.stringify(areaList));
+            alert("設定を保存しました。");
             location.reload();
         } catch (e) { alert("保存に失敗しました"); }
     }
